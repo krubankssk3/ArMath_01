@@ -2,341 +2,433 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <title>Math AR: Speedy Multiplication</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Selfie Math AR Game</title>
     
-    <!-- Libraries -->
-    <!-- ใช้ A-Frame 1.3.0 และ AR.js เพื่อความเสถียรบนมือถือ -->
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Nunito:wght@800&display=swap" rel="stylesheet">
 
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Chakra Petch', sans-serif; background-color: #080c14; }
-        #ar-hud { display: none; }
-        #game-over { display: none; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Chakra Petch', sans-serif;
+        }
+
+        /* กล้องวิดีโอพื้นหลัง */
+        #webcam-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* ให้เต็มจอ */
+            transform: scaleX(-1); /* สลับซ้ายขวาให้เหมือนกระจก (Selfie) */
+            z-index: 1;
+        }
+
+        /* เลเยอร์ UI ซ้อนทับกล้อง */
+        #game-ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* ให้คลิกทะลุได้ยกเว้นตัวที่มี pointer-events: auto */
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        /* สไตล์โจทย์คำถามลอยๆ */
+        .floating-question {
+            font-family: 'Nunito', sans-serif;
+            font-size: 4rem;
+            color: white;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            filter: drop-shadow(0px 4px 10px rgba(0,0,0,0.5));
+            text-align: center;
+        }
+
+        /* สไตล์ฟองสบู่คำตอบ (เหมือนในรูป) */
+        .answer-bubble {
+            position: absolute;
+            border-radius: 50%;
+            border: 4px solid white;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.4), inset 0 -4px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Nunito', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* ขนาดเริ่มต้น */
+            width: 100px;
+            height: 100px;
+            pointer-events: auto;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            animation: floatBubble 3s ease-in-out infinite;
+        }
+
+        .answer-bubble:active {
+            transform: scale(0.85);
+            filter: brightness(0.8);
+        }
+
+        /* แอนิเมชั่นลอยขึ้นลงเบาๆ ให้ดูเป็น AR */
+        @keyframes floatBubble {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* สีฟองสบู่ */
+        .bubble-blue { background: radial-gradient(circle at 30% 30%, #60a5fa, #2563eb); }
+        .bubble-orange { background: radial-gradient(circle at 30% 30%, #fb923c, #ea580c); }
+        .bubble-green { background: radial-gradient(circle at 30% 30%, #4ade80, #16a34a); }
+
         .glass-panel {
             background: rgba(17, 24, 39, 0.85);
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 </head>
-<body class="text-white">
+<body>
 
-    <!-- A-Frame AR Scene -->
-    <!-- เพิ่ม raycaster และชี้ให้จับเฉพาะคลาส .collidable เพื่อให้แตะจอได้แม่นยำขึ้น -->
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false" renderer="logarithmicDepthBuffer: true;" cursor="rayOrigin: mouse; fuse: false;" raycaster="objects: .collidable">
+    <!-- กล้องวิดีโอพื้นหลัง -->
+    <video id="webcam-bg" autoplay playsinline></video>
+
+    <!-- เลเยอร์ UI ทั้งหมด -->
+    <div id="game-ui-layer" class="flex flex-col items-center p-4">
         
-        <!-- Standard Hiro Marker -->
-        <a-marker preset="hiro" id="ar-marker">
+        <!-- เมนูหลัก (Main Menu) -->
+        <div id="main-menu" class="glass-panel w-full max-w-sm p-6 rounded-3xl mt-12 interactive shadow-2xl flex flex-col items-center">
+            <h1 class="text-4xl font-extrabold text-white mb-2 text-center drop-shadow-md">Selfie AR Math</h1>
+            <p class="text-gray-300 text-center mb-6 text-sm">คูณเร็ว แม่ 2-12<br>เอานิ้วจิ้มฟองสบู่คำตอบให้ถูกต้อง!</p>
             
-            <!-- Group สำหรับตัวเลือกคำตอบ ยกให้ลอยขึ้นมาและเอียงหาผู้เล่นเล็กน้อย -->
-            <a-entity position="0 0.5 -1" rotation="-45 0 0" scale="1.5 1.5 1.5">
-                
-                <!-- ตัวเลือกด้านขวา (Right Option) -->
-                <a-plane id="option_r_plane" 
-                         width="1.2" height="0.8" 
-                         color="#ec4899" 
-                         opacity="0.9" 
-                         position="1 0 0" 
-                         class="collidable"
-                         handler>
-                    <a-text id="option_r_text"
-                            value="?" 
-                            align="center" 
-                            color="#fff" 
-                            width="4" 
-                            position="0 0 0.05"></a-text>
-                    <a-text value="RIGHT" 
-                            align="center" 
-                            color="#fff" 
-                            opacity="0.5"
-                            width="2" 
-                            position="0 -0.3 0.05"></a-text>
-                </a-plane>
-
-                <!-- ตัวเลือกด้านซ้าย (Left Option) -->
-                <a-plane id="option_l_plane" 
-                         width="1.2" height="0.8" 
-                         color="#3b82f6" 
-                         opacity="0.9" 
-                         position="-1 0 0" 
-                         class="collidable"
-                         handler>
-                    <a-text id="option_l_text"
-                            value="?" 
-                            align="center" 
-                            color="#fff" 
-                            width="4" 
-                            position="0 0 0.05"></a-text>
-                    <a-text value="LEFT" 
-                            align="center" 
-                            color="#fff" 
-                            opacity="0.5"
-                            width="2" 
-                            position="0 -0.3 0.05"></a-text>
-                </a-plane>
-
-            </a-entity>
-        </a-marker>
-
-        <a-entity camera></a-entity>
-    </a-scene>
-
-    <!-- HTML UI Overlay -->
-    <div id="ui-container" class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center p-4">
-        
-        <!-- Main Menu -->
-        <div id="main-menu" class="glass-panel w-full max-w-lg p-6 rounded-3xl mt-10 pointer-events-auto shadow-2xl">
-            <h1 class="text-4xl font-extrabold text-center mb-2 text-pink-500 tracking-tight">สูตรคูณ AR</h1>
-            <p class="text-gray-300 text-center mb-6 text-sm">การจัดการเรียนรู้แบบ Active Learning<br>ฝึกสมอง แม่ 2-12 • 20 ข้อ</p>
-            
-            <div class="space-y-5">
+            <div class="w-full space-y-4">
                 <div>
-                    <label class="block text-sm font-bold text-gray-300 mb-2">ระดับความยาก</label>
+                    <label class="block text-sm font-bold text-gray-300 mb-2 text-center">ระดับความยาก</label>
                     <div class="grid grid-cols-3 gap-2">
-                        <button class="menu-btn selected" data-type="diff" data-value="easy">ง่าย (2-5)</button>
-                        <button class="menu-btn" data-type="diff" data-value="medium">ปานกลาง (2-9)</button>
-                        <button class="menu-btn" data-type="diff" data-value="hard">ยาก (2-12)</button>
+                        <button class="menu-btn diff-btn bg-blue-600 text-white border-2 border-white font-bold py-2 rounded-xl text-sm" data-value="easy">ง่าย</button>
+                        <button class="menu-btn diff-btn bg-gray-800 text-gray-300 py-2 rounded-xl text-sm" data-value="medium">กลาง</button>
+                        <button class="menu-btn diff-btn bg-gray-800 text-gray-300 py-2 rounded-xl text-sm" data-value="hard">ยาก</button>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-bold text-gray-300 mb-2">เวลา (วินาที)</label>
+                    <label class="block text-sm font-bold text-gray-300 mb-2 text-center">เวลา</label>
                     <div class="grid grid-cols-3 gap-2">
-                        <button class="menu-btn" data-type="time" data-value="30">30 วิ</button>
-                        <button class="menu-btn selected" data-type="time" data-value="60">60 วิ</button>
-                        <button class="menu-btn" data-type="time" data-value="120">120 วิ</button>
+                        <button class="menu-btn time-btn bg-gray-800 text-gray-300 py-2 rounded-xl text-sm" data-value="30">30 วิ</button>
+                        <button class="menu-btn time-btn bg-blue-600 text-white border-2 border-white font-bold py-2 rounded-xl text-sm" data-value="60">60 วิ</button>
+                        <button class="menu-btn time-btn bg-gray-800 text-gray-300 py-2 rounded-xl text-sm" data-value="120">120 วิ</button>
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-gray-700">
-                    <button id="start-game" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition shadow-lg active:scale-95">
-                        เริ่มเล่นเกม!
+                <div class="pt-4 border-t border-gray-600 w-full mt-4">
+                    <button id="start-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-extrabold py-3 px-6 rounded-xl text-xl transition active:scale-95 shadow-[0_0_15px_rgba(34,197,94,0.5)]">
+                        เริ่มเกมเลย!
                     </button>
-                    <div class="text-center mt-3 text-xs text-gray-400">
-                        *เตรียม <a href="https://stemkosmos.com/wp-content/uploads/2019/08/HIRO.jpg" target="_blank" class="text-blue-400 underline pointer-events-auto">Hiro Marker</a> ให้พร้อม แล้วส่องกล้องไปที่รูป
-                    </div>
+                    <p class="text-xs text-red-400 text-center mt-2">*ต้องอนุญาตให้ใช้กล้องหน้าก่อนเล่น</p>
                 </div>
             </div>
         </div>
 
-        <!-- HUD (แสดงระหว่างเล่น) -->
-        <div id="ar-hud" class="w-full max-w-md pt-2">
-            <div class="flex justify-between items-center glass-panel px-5 py-2 rounded-full mb-2 border-b-2 border-pink-500 shadow-md">
-                <div class="text-xs text-gray-400">คะแนน</div>
-                <div class="text-3xl font-extrabold text-white tabular-nums" id="score">0</div>
-                <div class="text-xs text-gray-400">เวลา</div>
-                <div class="text-3xl font-extrabold text-blue-400 tabular-nums" id="time">60</div>
-            </div>
-
-            <!-- กล่องแสดงโจทย์บนจอ 2D เผื่อหลุดโฟกัสจาก Marker -->
-            <div class="glass-panel w-full p-4 rounded-2xl border border-pink-700/50 text-center shadow-lg">
-                <div class="flex justify-center items-center gap-2 mb-1 text-sm text-gray-400">
-                    <span id="question-index">ข้อที่ 1</span> / <span>20</span>
+        <!-- หน้าจอตอนเล่น (HUD) -->
+        <div id="hud" class="w-full h-full relative hidden">
+            <!-- แถบคะแนนด้านบน -->
+            <div class="absolute top-0 left-0 w-full px-4 pt-4 flex justify-between items-start pointer-events-none">
+                <div class="glass-panel px-4 py-2 rounded-2xl">
+                    <div class="text-xs text-gray-300 font-bold uppercase">Score</div>
+                    <div id="score-display" class="text-3xl font-black text-white">0</div>
                 </div>
-                <div class="text-5xl font-extrabold text-pink-400 tracking-wider" id="hud_question">? × ?</div>
-                <div class="text-xs text-gray-300 mt-2 bg-gray-800/80 inline-block px-3 py-1 rounded-full">ใช้นิ้วแตะที่แผ่นป้ายคำตอบในกล้องได้เลย!</div>
-            </div>
-        </div>
+                
+                <div class="glass-panel px-4 py-1 rounded-full text-center">
+                    <div class="text-[10px] text-gray-300">ข้อที่</div>
+                    <div id="question-index" class="text-lg font-bold text-blue-400">1 / 20</div>
+                </div>
 
-        <!-- Game Over Screen -->
-        <div id="game-over" class="glass-panel w-full max-w-md p-8 rounded-3xl mt-16 pointer-events-auto text-center shadow-2xl border-2 border-pink-600">
-            <h2 class="text-5xl font-extrabold text-pink-500 mb-2">จบเกม!</h2>
-            <p id="game-over-reason" class="text-gray-400 mb-6 text-lg">เวลาหมด</p>
+                <div class="glass-panel px-4 py-2 rounded-2xl text-right">
+                    <div class="text-xs text-gray-300 font-bold uppercase">Time</div>
+                    <div id="time-display" class="text-3xl font-black text-red-400">60</div>
+                </div>
+            </div>
+
+            <!-- โจทย์คำถาม (อยู่ตรงกลางด้านบน) -->
+            <div class="absolute top-24 left-0 w-full flex justify-center pointer-events-none">
+                <div id="question-text" class="floating-question">8 * 6 = ?</div>
+            </div>
+
+            <!-- คอนเทนเนอร์สำหรับใส่ฟองสบู่คำตอบ -->
+            <div id="bubbles-container" class="absolute top-0 left-0 w-full h-full pointer-events-none">
+                <!-- ฟองสบู่จะถูกสร้างและจัดวางด้วย Javascript -->
+            </div>
             
-            <div class="glass-panel p-4 rounded-2xl bg-gray-900/80 mb-8 border border-gray-700">
-                <div class="text-gray-400 text-sm">คะแนนที่ได้</div>
-                <div id="final-score" class="text-7xl font-extrabold text-white mt-1 tabular-nums">0</div>
-                <div class="text-gray-300 text-base mt-2">ตอบถูก <span id="final-correct" class="font-bold text-pink-400">0</span> จาก 20 ข้อ</div>
+            <!-- เอฟเฟกต์ตอบถูก/ผิด -->
+            <div id="feedback-overlay" class="absolute inset-0 flex justify-center items-center pointer-events-none opacity-0 transition-opacity duration-300">
+                <div id="feedback-text" class="text-6xl font-black text-white px-8 py-4 rounded-3xl bg-black/50 border-4 border-green-400 drop-shadow-2xl">
+                    CORRECT!
+                </div>
+            </div>
+        </div>
+
+        <!-- หน้าจอจบเกม -->
+        <div id="game-over" class="glass-panel w-full max-w-sm p-8 rounded-3xl mt-24 interactive text-center shadow-2xl border-2 border-blue-500 hidden">
+            <h2 class="text-5xl font-extrabold text-blue-400 mb-2">จบเกม!</h2>
+            <p id="game-over-reason" class="text-gray-300 mb-6 text-sm">เวลาหมดแล้ว</p>
+            
+            <div class="bg-gray-900/80 p-6 rounded-2xl mb-8 shadow-inner">
+                <div class="text-gray-400 text-sm">คะแนนรวม</div>
+                <div id="final-score" class="text-7xl font-black text-white mt-1">0</div>
+                <div class="text-gray-300 text-base mt-2">ตอบถูก <span id="final-correct" class="text-green-400 font-bold">0</span> / 20 ข้อ</div>
             </div>
 
-            <button id="restart-game" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition active:scale-95 shadow-lg">
+            <button id="restart-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl text-lg transition active:scale-95 shadow-[0_0_15px_rgba(37,99,235,0.5)]">
                 เล่นอีกครั้ง
             </button>
         </div>
     </div>
 
-    <!-- Script ควบคุมปุ่มและ Tailwind -->
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gray: { 950: '#080c14', 900: '#111827', 800: '#1f2937' },
-                        pink: { 500: '#ec4899', 600: '#db2777', 700: '#be185d' },
-                        blue: { 400: '#60a5fa', 600: '#2563eb', 700: '#1d4ed8' }
-                    }
-                }
+        // Game Settings & State
+        let config = { diff: 'easy', time: 60 };
+        let gameState = {
+            isPlaying: false,
+            score: 0,
+            timeRemaining: 0,
+            questionIdx: 0,
+            correctAnswer: 0,
+            timer: null
+        };
+        const MAX_QUESTIONS = 20;
+
+        // DOM Elements
+        const videoEl = document.getElementById('webcam-bg');
+        const uiMenu = document.getElementById('main-menu');
+        const uiHud = document.getElementById('hud');
+        const uiGameOver = document.getElementById('game-over');
+        
+        const scoreDisplay = document.getElementById('score-display');
+        const timeDisplay = document.getElementById('time-display');
+        const qIndexDisplay = document.getElementById('question-index');
+        const questionText = document.getElementById('question-text');
+        const bubblesContainer = document.getElementById('bubbles-container');
+        
+        const feedbackOverlay = document.getElementById('feedback-overlay');
+        const feedbackText = document.getElementById('feedback-text');
+
+        // Setup Camera (WebRTC)
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user' }, // บังคับใช้กล้องหน้า (Selfie)
+                    audio: false
+                });
+                videoEl.srcObject = stream;
+            } catch (err) {
+                console.error("Camera access denied or unavailable:", err);
+                alert("กรุณาอนุญาตให้เข้าถึงกล้องเพื่อเล่นเกมแบบ AR");
             }
         }
-    </script>
+        // เรียกใช้กล้องทันทีที่โหลดหน้าเว็บ
+        setupCamera();
 
-    <!-- Game Logic -->
-    <script>
-        let gameState = 'menu'; 
-        let config = { diff: 'easy', time: '60' };
-        let gameData = {
-            currentQuestionIdx: 0,
-            score: 0,
-            correctCount: 0,
-            timeRemaining: 0,
-            currentCorrectAnswer: null,
-            timerInterval: null,
-            maxQuestions: 20
-        };
-
-        const scoreValues = { easy: 5, medium: 10, hard: 15 };
-
-        // HTML Elements
-        const uiContainer = document.getElementById('ui-container');
-        const mainMenu = document.getElementById('main-menu');
-        const arHud = document.getElementById('ar-hud');
-        const gameOverScreen = document.getElementById('game-over');
-        const scoreDisplay = document.getElementById('score');
-        const timeDisplay = document.getElementById('time');
-        const questionIdxDisplay = document.getElementById('question-index');
-        const hudQuestionText = document.getElementById('hud_question');
-
-        // A-Frame Elements
-        const optionLPlane = document.getElementById('option_l_plane');
-        const optionLText = document.getElementById('option_l_text');
-        const optionRPlane = document.getElementById('option_r_plane');
-        const optionRText = document.getElementById('option_r_text');
-
-        // เมนูเลือกระดับความยากและเวลา
-        document.querySelectorAll('.menu-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const type = btn.dataset.type;
-                document.querySelectorAll(`.menu-btn[data-type="${type}"]`).forEach(b => {
-                    b.classList.remove('selected', 'bg-blue-600', 'ring-2', 'ring-white', 'text-white');
-                    b.classList.add('bg-gray-800', 'text-gray-300');
-                });
-                btn.classList.add('selected', 'bg-blue-600', 'ring-2', 'ring-white', 'text-white');
-                btn.classList.remove('bg-gray-800', 'text-gray-300');
-                config[type] = btn.dataset.value;
+        // Menu Buttons Setup
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.diff-btn').forEach(b => b.className = 'menu-btn diff-btn bg-gray-800 text-gray-300 py-2 rounded-xl text-sm');
+                e.target.className = 'menu-btn diff-btn bg-blue-600 text-white border-2 border-white font-bold py-2 rounded-xl text-sm';
+                config.diff = e.target.dataset.value;
             });
         });
 
-        // Setup ปุ่มเริ่มต้น
-        document.querySelectorAll('.menu-btn').forEach(btn => {
-            if (btn.classList.contains('selected')) {
-                btn.classList.add('bg-blue-600', 'ring-2', 'ring-white', 'text-white');
-            } else {
-                btn.classList.add('bg-gray-800', 'text-gray-300', 'py-2', 'rounded-lg', 'text-sm');
-                if(btn.classList.contains('selected')) btn.classList.add('py-2', 'rounded-lg', 'text-sm');
-            }
-            if(!btn.classList.contains('py-2')) btn.classList.add('py-2', 'rounded-lg', 'text-sm');
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.time-btn').forEach(b => b.className = 'menu-btn time-btn bg-gray-800 text-gray-300 py-2 rounded-xl text-sm');
+                e.target.className = 'menu-btn time-btn bg-blue-600 text-white border-2 border-white font-bold py-2 rounded-xl text-sm';
+                config.time = parseInt(e.target.dataset.value);
+            });
         });
 
-        document.getElementById('start-game').addEventListener('click', startGame);
-        document.getElementById('restart-game').addEventListener('click', () => location.reload());
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            uiGameOver.classList.add('hidden');
+            uiMenu.classList.remove('hidden');
+        });
 
         function startGame() {
-            gameState = 'playing';
-            gameData.currentQuestionIdx = 0;
-            gameData.score = 0;
-            gameData.correctCount = 0;
-            gameData.timeRemaining = parseInt(config.time);
+            // รีเซ็ตค่า
+            gameState.isPlaying = true;
+            gameState.score = 0;
+            gameState.timeRemaining = config.time;
+            gameState.questionIdx = 0;
+            gameState.correctCount = 0;
 
-            mainMenu.style.display = 'none';
-            arHud.style.display = 'block';
-            gameOverScreen.style.display = 'none';
-            uiContainer.classList.remove('pointer-events-none');
+            // จัดการ UI
+            uiMenu.classList.add('hidden');
+            uiHud.classList.remove('hidden');
+            updateHUD();
 
-            updateHudDisplay();
-            generateQuestion();
-            
-            gameData.timerInterval = setInterval(() => {
-                gameData.timeRemaining--;
-                updateHudDisplay();
-                if (gameData.timeRemaining <= 0) endGame('time');
+            // เริ่มนับเวลา
+            clearInterval(gameState.timer);
+            gameState.timer = setInterval(() => {
+                gameState.timeRemaining--;
+                updateHUD();
+                if (gameState.timeRemaining <= 0) endGame('หมดเวลา!');
             }, 1000);
+
+            generateQuestion();
         }
 
-        function updateHudDisplay() {
-            timeDisplay.innerText = gameData.timeRemaining;
-            scoreDisplay.innerText = gameData.score;
-            questionIdxDisplay.innerText = `ข้อที่ ${gameData.currentQuestionIdx + 1}`;
+        function updateHUD() {
+            scoreDisplay.innerText = gameState.score;
+            timeDisplay.innerText = gameState.timeRemaining;
+            qIndexDisplay.innerText = `${gameState.questionIdx + 1} / ${MAX_QUESTIONS}`;
+            
+            // แดงเตือนถ้าเวลาใกล้หมด
+            if (gameState.timeRemaining <= 10) timeDisplay.classList.replace('text-red-400', 'text-red-600');
+            else timeDisplay.classList.replace('text-red-600', 'text-red-400');
+        }
+
+        function endGame(reason) {
+            gameState.isPlaying = false;
+            clearInterval(gameState.timer);
+            bubblesContainer.innerHTML = ''; // เคลียร์ฟองสบู่
+            
+            uiHud.classList.add('hidden');
+            uiGameOver.classList.remove('hidden');
+            
+            document.getElementById('game-over-reason').innerText = reason;
+            document.getElementById('final-score').innerText = gameState.score;
+            document.getElementById('final-correct').innerText = gameState.correctCount;
         }
 
         function generateQuestion() {
-            if (gameData.currentQuestionIdx >= gameData.maxQuestions) {
-                endGame('complete');
+            if (gameState.questionIdx >= MAX_QUESTIONS) {
+                endGame('ทำครบ 20 ข้อแล้ว! เก่งมาก');
                 return;
             }
 
-            let minFact = 2;
-            let maxFact = 12;
-            if (config.diff === 'easy') maxFact = 5;
-            else if (config.diff === 'medium') maxFact = 9;
-
-            let numA = Math.floor(Math.random() * (maxFact - minFact + 1)) + minFact;
-            let numB = Math.floor(Math.random() * 11) + 2; 
-
-            gameData.currentCorrectAnswer = numA * numB;
-            hudQuestionText.innerText = `${numA} × ${numB}`;
-
-            // สร้างคำตอบที่ผิด 1 ข้อ
-            let wrongAnswer = gameData.currentCorrectAnswer + (Math.random() > 0.5 ? numA : -numA);
-            if (wrongAnswer === gameData.currentCorrectAnswer || wrongAnswer <= 0) wrongAnswer += 2;
-
-            // สุ่มซ้าย-ขวา
-            const correctIsRight = Math.random() > 0.5;
-            const optionL = correctIsRight ? wrongAnswer : gameData.currentCorrectAnswer;
-            const optionR = correctIsRight ? gameData.currentCorrectAnswer : wrongAnswer;
-
-            optionLText.setAttribute('value', optionL.toString());
-            optionRText.setAttribute('value', optionR.toString());
-
-            optionLPlane.dataset.correct = (!correctIsRight).toString();
-            optionRPlane.dataset.correct = correctIsRight.toString();
+            // คำนวณความยาก
+            let maxMulti = config.diff === 'easy' ? 5 : (config.diff === 'medium' ? 9 : 12);
+            let a = Math.floor(Math.random() * (maxMulti - 2 + 1)) + 2;
+            let b = Math.floor(Math.random() * 11) + 2; // แม่ 2-12
             
-            // คืนค่าสีป้ายเดิม
-            optionLPlane.setAttribute('color', '#3b82f6');
-            optionRPlane.setAttribute('color', '#ec4899');
+            gameState.correctAnswer = a * b;
+            
+            // ใช้เครื่องหมาย * หรือ x ก็ได้ ตามรูปอ้างอิงใช้ *
+            questionText.innerText = `${a} * ${b} = ?`;
+
+            // สร้างคำตอบหลอก 2 ข้อ
+            let wrong1 = gameState.correctAnswer + (Math.random() > 0.5 ? a : -a);
+            let wrong2 = gameState.correctAnswer + (Math.random() > 0.5 ? b : -b);
+            
+            // ป้องกันคำตอบซ้ำและคำตอบติดลบ
+            if (wrong1 === gameState.correctAnswer || wrong1 <= 0) wrong1 = gameState.correctAnswer + 2;
+            if (wrong2 === gameState.correctAnswer || wrong2 === wrong1 || wrong2 <= 0) wrong2 = gameState.correctAnswer + 5;
+
+            let answers = [gameState.correctAnswer, wrong1, wrong2];
+            // สลับตำแหน่งคำตอบ (Shuffle)
+            answers.sort(() => Math.random() - 0.5);
+
+            renderBubbles(answers);
         }
 
-        // ระบบจับการทัชหน้าจอของ A-Frame
-        AFRAME.registerComponent('handler', {
-            init: function () {
-                const el = this.el;
-                el.addEventListener('mousedown', function () {
-                    if (gameState !== 'playing') return;
-                    
-                    const isCorrect = el.dataset.correct === 'true';
-                    el.setAttribute('color', isCorrect ? '#4ade80' : '#ef4444'); // เขียว=ถูก, แดง=ผิด
-                    
-                    if (isCorrect) {
-                        gameData.score += scoreValues[config.diff];
-                        gameData.correctCount++;
-                    } else {
-                        gameData.timeRemaining = Math.max(0, gameData.timeRemaining - 3); // ตอบผิดโดนหักเวลา 3 วิ
-                    }
-
-                    setTimeout(() => {
-                        gameData.currentQuestionIdx++;
-                        generateQuestion();
-                        updateHudDisplay();
-                    }, 400);
-                });
-            }
-        });
-
-        function endGame(reason) {
-            clearInterval(gameData.timerInterval);
-            gameState = 'gameover';
+        function renderBubbles(answers) {
+            bubblesContainer.innerHTML = ''; // ล้างของเก่า
             
-            arHud.style.display = 'none';
-            gameOverScreen.style.display = 'block';
-            uiContainer.classList.add('pointer-events-none');
-            gameOverScreen.classList.add('pointer-events-auto');
+            // กำหนดสไตล์ฟอง 3 แบบตามในรูป (น้ำเงิน, ส้ม, เขียว)
+            const styles = ['bubble-blue', 'bubble-orange', 'bubble-green'];
+            
+            // ตำแหน่งคงที่ 3 จุด ซ้าย ล่างขวา และ ขวา (ปรับให้ไม่บังหน้าผู้เล่นมาก)
+            // ใช้ Left และ Top เป็น %
+            const positions = [
+                { left: '15%', top: '65%' }, // ซ้าย
+                { left: '40%', top: '75%' }, // กลางล่าง
+                { left: '70%', top: '55%' }  // ขวา
+            ];
 
-            document.getElementById('game-over-reason').innerText = reason === 'complete' ? 'ทำครบ 20 ข้อแล้ว!' : 'หมดเวลา!';
-            document.getElementById('final-score').innerText = gameData.score;
-            document.getElementById('final-correct').innerText = gameData.correctCount;
+            answers.forEach((ans, i) => {
+                let btn = document.createElement('div');
+                btn.className = `answer-bubble ${styles[i]}`;
+                btn.innerText = ans;
+                
+                // จัดตำแหน่ง
+                btn.style.left = positions[i].left;
+                btn.style.top = positions[i].top;
+
+                // ตรวจสอบคำตอบเมื่อแตะ
+                btn.addEventListener('click', () => handleAnswer(ans, btn));
+                // รองรับ touch บนมือถือ
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // ป้องกันการกดซ้อนกัน
+                    handleAnswer(ans, btn);
+                });
+
+                bubblesContainer.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(selectedAns, buttonElement) {
+            if (!gameState.isPlaying) return;
+            
+            // ปิดไม่ให้กดซ้ำระหว่างแสดงเอฟเฟกต์
+            bubblesContainer.style.pointerEvents = 'none';
+            
+            const isCorrect = (selectedAns === gameState.correctAnswer);
+            
+            if (isCorrect) {
+                // เอฟเฟกต์ตอบถูก
+                buttonElement.style.transform = 'scale(1.2)';
+                buttonElement.style.borderColor = '#4ade80';
+                
+                showFeedback('CORRECT!', 'text-green-400', 'border-green-400');
+                
+                let pts = config.diff === 'hard' ? 15 : (config.diff === 'medium' ? 10 : 5);
+                gameState.score += pts;
+                gameState.correctCount++;
+            } else {
+                // เอฟเฟกต์ตอบผิด
+                buttonElement.style.transform = 'scale(0.8)';
+                buttonElement.style.background = 'red';
+                
+                showFeedback('WRONG', 'text-red-500', 'border-red-500');
+                
+                gameState.timeRemaining = Math.max(0, gameState.timeRemaining - 3); // โดนหักเวลา
+            }
+
+            updateHUD();
+
+            // ดีเลย์นิดนึงก่อนเปลี่ยนข้อ
+            setTimeout(() => {
+                bubblesContainer.style.pointerEvents = 'auto'; // เปิดให้กดใหม่
+                gameState.questionIdx++;
+                generateQuestion();
+            }, 600);
+        }
+
+        function showFeedback(text, textColorClass, borderColorClass) {
+            feedbackText.innerText = text;
+            feedbackText.className = `text-5xl md:text-6xl font-black px-8 py-4 rounded-3xl bg-black/70 border-4 drop-shadow-2xl ${textColorClass} ${borderColorClass}`;
+            
+            feedbackOverlay.style.opacity = '1';
+            feedbackOverlay.style.transform = 'scale(1.1)';
+            
+            setTimeout(() => {
+                feedbackOverlay.style.opacity = '0';
+                feedbackOverlay.style.transform = 'scale(1)';
+            }, 500);
         }
     </script>
 </body>
