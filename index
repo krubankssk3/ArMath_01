@@ -3,99 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-    <title>Math AR: Speedy Multiplication v3 (2 Options & Direct Touch)</title>
+    <title>Math AR: Speedy Multiplication</title>
     
     <!-- Libraries -->
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <!-- ใช้ A-Frame 1.3.0 และ AR.js เพื่อความเสถียรบนมือถือ -->
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Chakra Petch', sans-serif; }
+        body { margin: 0; overflow: hidden; font-family: 'Chakra Petch', sans-serif; background-color: #080c14; }
         #ar-hud { display: none; }
         #game-over { display: none; }
         .glass-panel {
-            background: rgba(17, 24, 39, 0.7);
-            backdrop-filter: blur(10px);
+            background: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 </head>
-<body class="bg-gray-950 text-white">
+<body class="text-white">
 
     <!-- A-Frame AR Scene -->
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false" renderer="logarithmicDepthBuffer: true;">
-        <!-- Assets for 3D Text Geometry (Standard A-Frame components often don't render Thai fonts directly without complex setup)
-             We use planes with text components for compatibility. -->
+    <!-- เพิ่ม raycaster และชี้ให้จับเฉพาะคลาส .collidable เพื่อให้แตะจอได้แม่นยำขึ้น -->
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false" renderer="logarithmicDepthBuffer: true;" cursor="rayOrigin: mouse; fuse: false;" raycaster="objects: .collidable">
         
         <!-- Standard Hiro Marker -->
-        <a-marker preset="hiro" cursor="fuse: false; rayOrigin: mouse;" emitevents="true" id="ar-marker">
+        <a-marker preset="hiro" id="ar-marker">
             
-            <!-- Answer Planes (Interactable) -->
-            <!-- We must ensure these are positioned within view and scaled properly.
-                 The camera looks from roughly position "0 1.6 0" relative to the marker.
-                 The marker itself is at (0 0 0).
-                 We'll place answers slightly in front of the marker. -->
-
-            <!-- Group for answers, slightly raised and scaled for better mobile visibility -->
-            <a-entity position="0 0.2 -1" scale="1.5 1.5 1.5">
+            <!-- Group สำหรับตัวเลือกคำตอบ ยกให้ลอยขึ้นมาและเอียงหาผู้เล่นเล็กน้อย -->
+            <a-entity position="0 0.5 -1" rotation="-45 0 0" scale="1.5 1.5 1.5">
                 
-                <!-- Right Option (A-Plane for touch detection) -->
+                <!-- ตัวเลือกด้านขวา (Right Option) -->
                 <a-plane id="option_r_plane" 
-                         width="1.2" height="0.6" 
+                         width="1.2" height="0.8" 
                          color="#ec4899" 
                          opacity="0.9" 
-                         position="0.9 0 0" 
-                         rotation="0 0 0"
+                         position="1 0 0" 
                          class="collidable"
                          handler>
-                    <!-- Text on Right Option -->
                     <a-text id="option_r_text"
                             value="?" 
                             align="center" 
                             color="#fff" 
-                            width="2.5" 
+                            width="4" 
                             position="0 0 0.05"></a-text>
-                    <!-- Label below R -->
-                    <a-text value="ขวา" 
+                    <a-text value="RIGHT" 
                             align="center" 
                             color="#fff" 
-                            opacity="0.6"
-                            width="1.5" 
-                            position="0 -0.4 0.05"></a-text>
+                            opacity="0.5"
+                            width="2" 
+                            position="0 -0.3 0.05"></a-text>
                 </a-plane>
 
-                <!-- Left Option (A-Plane for touch detection) -->
+                <!-- ตัวเลือกด้านซ้าย (Left Option) -->
                 <a-plane id="option_l_plane" 
-                         width="1.2" height="0.6" 
+                         width="1.2" height="0.8" 
                          color="#3b82f6" 
                          opacity="0.9" 
-                         position="-0.9 0 0" 
-                         rotation="0 0 0"
+                         position="-1 0 0" 
                          class="collidable"
                          handler>
-                    <!-- Text on Left Option -->
                     <a-text id="option_l_text"
                             value="?" 
                             align="center" 
                             color="#fff" 
-                            width="2.5" 
+                            width="4" 
                             position="0 0 0.05"></a-text>
-                    <!-- Label below L -->
-                    <a-text value="ซ้าย" 
+                    <a-text value="LEFT" 
                             align="center" 
                             color="#fff" 
-                            opacity="0.6"
-                            width="1.5" 
-                            position="0 -0.4 0.05"></a-text>
+                            opacity="0.5"
+                            width="2" 
+                            position="0 -0.3 0.05"></a-text>
                 </a-plane>
 
             </a-entity>
-
         </a-marker>
 
-        <!-- No Camera / Reticle needed in direct touch mode, but A-Frame requires a camera entity -->
         <a-entity camera></a-entity>
     </a-scene>
 
@@ -103,15 +89,14 @@
     <div id="ui-container" class="absolute inset-0 pointer-events-none z-10 flex flex-col items-center p-4">
         
         <!-- Main Menu -->
-        <div id="main-menu" class="glass-panel w-full max-w-lg p-8 rounded-3xl mt-16 pointer-events-auto shadow-2xl">
-            <h1 class="text-5xl font-extrabold text-center mb-4 text-pink-500 tracking-tight">MATH AR v3</h1>
-            <p class="text-gray-300 text-center mb-8 text-lg">คูณเร็ว แม่ 2-12 • แตะตอบตรงๆ 2 ช้อยส์ • 20 ข้อ</p>
+        <div id="main-menu" class="glass-panel w-full max-w-lg p-6 rounded-3xl mt-10 pointer-events-auto shadow-2xl">
+            <h1 class="text-4xl font-extrabold text-center mb-2 text-pink-500 tracking-tight">สูตรคูณ AR</h1>
+            <p class="text-gray-300 text-center mb-6 text-sm">การจัดการเรียนรู้แบบ Active Learning<br>ฝึกสมอง แม่ 2-12 • 20 ข้อ</p>
             
-            <!-- Setup Form -->
-            <div class="space-y-6">
+            <div class="space-y-5">
                 <div>
-                    <label class="block text-sm font-bold text-gray-300 mb-2">เลือกระดับความยาก (Difficulty)</label>
-                    <div class="grid grid-cols-3 gap-3">
+                    <label class="block text-sm font-bold text-gray-300 mb-2">ระดับความยาก</label>
+                    <div class="grid grid-cols-3 gap-2">
                         <button class="menu-btn selected" data-type="diff" data-value="easy">ง่าย (2-5)</button>
                         <button class="menu-btn" data-type="diff" data-value="medium">ปานกลาง (2-9)</button>
                         <button class="menu-btn" data-type="diff" data-value="hard">ยาก (2-12)</button>
@@ -119,64 +104,62 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-bold text-gray-300 mb-2">กำหนดเวลา (Time Limit)</label>
-                    <div class="grid grid-cols-3 gap-3">
+                    <label class="block text-sm font-bold text-gray-300 mb-2">เวลา (วินาที)</label>
+                    <div class="grid grid-cols-3 gap-2">
                         <button class="menu-btn" data-type="time" data-value="30">30 วิ</button>
                         <button class="menu-btn selected" data-type="time" data-value="60">60 วิ</button>
                         <button class="menu-btn" data-type="time" data-value="120">120 วิ</button>
                     </div>
                 </div>
 
-                <div class="pt-6 border-t border-gray-800">
-                    <button id="start-game" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 px-6 rounded-xl text-xl transition shadow-xl active:scale-95">
-                        เริ่มเล่นเกม! (Start)
+                <div class="pt-4 border-t border-gray-700">
+                    <button id="start-game" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition shadow-lg active:scale-95">
+                        เริ่มเล่นเกม!
                     </button>
-                    <div class="text-center mt-3 text-xs text-gray-500">
-                        เกมจะสิ้นสุดเมื่อตอบครบ 20 ข้อ หรือ หมดเวลา
-                        <br>หากไม่เห็นตัวเลือก ให้ลองขยับกล้องส่อง <a href="https://stemkosmos.com/wp-content/uploads/2019/08/HIRO.jpg" target="_blank" class="text-blue-400 underline">Hiro Marker</a> ใหม่
+                    <div class="text-center mt-3 text-xs text-gray-400">
+                        *เตรียม <a href="https://stemkosmos.com/wp-content/uploads/2019/08/HIRO.jpg" target="_blank" class="text-blue-400 underline pointer-events-auto">Hiro Marker</a> ให้พร้อม แล้วส่องกล้องไปที่รูป
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- HUD: Heads Up Display (Visible during playing) -->
+        <!-- HUD (แสดงระหว่างเล่น) -->
         <div id="ar-hud" class="w-full max-w-md pt-2">
-            <!-- Top HUD Panel -->
-            <div class="flex justify-between items-center glass-panel px-6 py-3 rounded-full mb-2 border-b-2 border-pink-500 shadow-md">
-                <div class="text-xs text-gray-400">Score</div>
-                <div class="text-4xl font-extrabold text-white tabular-nums" id="score">0</div>
-                <div class="text-xs text-gray-400">Time</div>
-                <div class="text-4xl font-extrabold text-blue-400 tabular-nums" id="time">60</div>
+            <div class="flex justify-between items-center glass-panel px-5 py-2 rounded-full mb-2 border-b-2 border-pink-500 shadow-md">
+                <div class="text-xs text-gray-400">คะแนน</div>
+                <div class="text-3xl font-extrabold text-white tabular-nums" id="score">0</div>
+                <div class="text-xs text-gray-400">เวลา</div>
+                <div class="text-3xl font-extrabold text-blue-400 tabular-nums" id="time">60</div>
             </div>
 
-            <!-- Question and Progress Display (Also 2D for visibility insurance) -->
-            <div class="glass-panel w-full p-6 rounded-2xl border border-pink-700/50 text-center shadow-lg">
-                <div class="flex justify-center items-center gap-2 mb-2 text-sm text-gray-500">
+            <!-- กล่องแสดงโจทย์บนจอ 2D เผื่อหลุดโฟกัสจาก Marker -->
+            <div class="glass-panel w-full p-4 rounded-2xl border border-pink-700/50 text-center shadow-lg">
+                <div class="flex justify-center items-center gap-2 mb-1 text-sm text-gray-400">
                     <span id="question-index">ข้อที่ 1</span> / <span>20</span>
                 </div>
-                <div class="text-6xl font-extrabold text-pink-500 tracking-wider" id="hud_question">? × ?</div>
-                <div class="text-xs text-gray-400 mt-2">แตะที่ตัวเลือก ซ้าย-ขวา ในกล้อง AR ได้เลย!</div>
+                <div class="text-5xl font-extrabold text-pink-400 tracking-wider" id="hud_question">? × ?</div>
+                <div class="text-xs text-gray-300 mt-2 bg-gray-800/80 inline-block px-3 py-1 rounded-full">ใช้นิ้วแตะที่แผ่นป้ายคำตอบในกล้องได้เลย!</div>
             </div>
         </div>
 
         <!-- Game Over Screen -->
-        <div id="game-over" class="glass-panel w-full max-w-md p-10 rounded-3xl mt-16 pointer-events-auto text-center shadow-2xl border-2 border-pink-600">
-            <h2 class="text-6xl font-extrabold text-pink-500 mb-2">จบเกม!</h2>
-            <p id="game-over-reason" class="text-gray-400 mb-8 text-lg">เวลาหมด (Out of time)</p>
+        <div id="game-over" class="glass-panel w-full max-w-md p-8 rounded-3xl mt-16 pointer-events-auto text-center shadow-2xl border-2 border-pink-600">
+            <h2 class="text-5xl font-extrabold text-pink-500 mb-2">จบเกม!</h2>
+            <p id="game-over-reason" class="text-gray-400 mb-6 text-lg">เวลาหมด</p>
             
-            <div class="glass-panel p-6 rounded-2xl bg-gray-950/60 mb-10">
-                <div class="text-gray-400 text-sm">คะแนนสุดท้าย (Final Score)</div>
-                <div id="final-score" class="text-8xl font-extrabold text-white mt-1 tabular-nums">125</div>
-                <div class="text-gray-300 text-base mt-2">ตอบถูก <span id="final-correct">0</span> / 20 ข้อ</div>
+            <div class="glass-panel p-4 rounded-2xl bg-gray-900/80 mb-8 border border-gray-700">
+                <div class="text-gray-400 text-sm">คะแนนที่ได้</div>
+                <div id="final-score" class="text-7xl font-extrabold text-white mt-1 tabular-nums">0</div>
+                <div class="text-gray-300 text-base mt-2">ตอบถูก <span id="final-correct" class="font-bold text-pink-400">0</span> จาก 20 ข้อ</div>
             </div>
 
-            <button id="restart-game" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl text-xl transition active:scale-95 shadow-lg">
-                เล่นอีกครั้ง (Play Again)
-            </div>
+            <button id="restart-game" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition active:scale-95 shadow-lg">
+                เล่นอีกครั้ง
+            </button>
         </div>
     </div>
 
-    <!-- Tailwind Config for styled buttons -->
+    <!-- Script ควบคุมปุ่มและ Tailwind -->
     <script>
         tailwind.config = {
             theme: {
@@ -193,8 +176,7 @@
 
     <!-- Game Logic -->
     <script>
-        // Game State Variables
-        let gameState = 'menu'; // 'menu', 'playing', 'gameover'
+        let gameState = 'menu'; 
         let config = { diff: 'easy', time: '60' };
         let gameData = {
             currentQuestionIdx: 0,
@@ -213,50 +195,44 @@
         const mainMenu = document.getElementById('main-menu');
         const arHud = document.getElementById('ar-hud');
         const gameOverScreen = document.getElementById('game-over');
-        const gameOverReason = document.getElementById('game-over-reason');
         const scoreDisplay = document.getElementById('score');
         const timeDisplay = document.getElementById('time');
         const questionIdxDisplay = document.getElementById('question-index');
         const hudQuestionText = document.getElementById('hud_question');
-        const finalScoreDisplay = document.getElementById('final-score');
-        const finalCorrectDisplay = document.getElementById('final-correct');
 
-        // A-Frame AR Elements
-        const arMarker = document.getElementById('ar-marker');
+        // A-Frame Elements
         const optionLPlane = document.getElementById('option_l_plane');
         const optionLText = document.getElementById('option_l_text');
         const optionRPlane = document.getElementById('option_r_plane');
         const optionRText = document.getElementById('option_r_text');
 
-        // --- Menu Logic ---
+        // เมนูเลือกระดับความยากและเวลา
         document.querySelectorAll('.menu-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const type = btn.dataset.type;
-                // Deselect all other buttons in the same group
-                document.querySelectorAll(`.menu-btn[data-type="${type}"]`).forEach(b => b.classList.remove('selected', 'bg-blue-600', 'ring-2', 'ring-white', 'text-white'));
-                document.querySelectorAll(`.menu-btn[data-type="${type}"]`).forEach(b => b.classList.add('bg-gray-800', 'text-gray-300'));
-                
-                // Select this button
+                document.querySelectorAll(`.menu-btn[data-type="${type}"]`).forEach(b => {
+                    b.classList.remove('selected', 'bg-blue-600', 'ring-2', 'ring-white', 'text-white');
+                    b.classList.add('bg-gray-800', 'text-gray-300');
+                });
                 btn.classList.add('selected', 'bg-blue-600', 'ring-2', 'ring-white', 'text-white');
                 btn.classList.remove('bg-gray-800', 'text-gray-300');
-                
                 config[type] = btn.dataset.value;
             });
         });
 
-        // Initialize menu buttons (applying Tailwind styles manually because classes aren't in HTML at start)
+        // Setup ปุ่มเริ่มต้น
         document.querySelectorAll('.menu-btn').forEach(btn => {
             if (btn.classList.contains('selected')) {
                 btn.classList.add('bg-blue-600', 'ring-2', 'ring-white', 'text-white');
             } else {
-                btn.classList.add('bg-gray-800', 'text-gray-300');
+                btn.classList.add('bg-gray-800', 'text-gray-300', 'py-2', 'rounded-lg', 'text-sm');
+                if(btn.classList.contains('selected')) btn.classList.add('py-2', 'rounded-lg', 'text-sm');
             }
+            if(!btn.classList.contains('py-2')) btn.classList.add('py-2', 'rounded-lg', 'text-sm');
         });
 
         document.getElementById('start-game').addEventListener('click', startGame);
-        document.getElementById('restart-game').addEventListener('click', () => location.reload()); // Simple reload to restart
-
-        // --- Core Game Functions ---
+        document.getElementById('restart-game').addEventListener('click', () => location.reload());
 
         function startGame() {
             gameState = 'playing';
@@ -265,35 +241,19 @@
             gameData.correctCount = 0;
             gameData.timeRemaining = parseInt(config.time);
 
-            // UI Transitions
             mainMenu.style.display = 'none';
             arHud.style.display = 'block';
             gameOverScreen.style.display = 'none';
-
-            // Allow clicking in AR scene
             uiContainer.classList.remove('pointer-events-none');
-            arMarker.setAttribute('cursor', 'rayOrigin: mouse');
 
-            // Set HUD initial state
             updateHudDisplay();
-            
             generateQuestion();
-            startTimer();
-        }
-
-        function startTimer() {
-            updateHudDisplay();
+            
             gameData.timerInterval = setInterval(() => {
                 gameData.timeRemaining--;
                 updateHudDisplay();
-                if (gameData.timeRemaining <= 0) {
-                    endGame('time');
-                }
+                if (gameData.timeRemaining <= 0) endGame('time');
             }, 1000);
-        }
-
-        function stopTimer() {
-            clearInterval(gameData.timerInterval);
         }
 
         function updateHudDisplay() {
@@ -310,118 +270,74 @@
 
             let minFact = 2;
             let maxFact = 12;
-
             if (config.diff === 'easy') maxFact = 5;
             else if (config.diff === 'medium') maxFact = 9;
-            // 'hard' remains 2-12
 
             let numA = Math.floor(Math.random() * (maxFact - minFact + 1)) + minFact;
-            let numB = Math.floor(Math.random() * (maxFact - 2 + 1)) + 2; // Always 2-12 for the multiplier
+            let numB = Math.floor(Math.random() * 11) + 2; 
 
-            const questionText = `${numA} × ${numB}`;
             gameData.currentCorrectAnswer = numA * numB;
+            hudQuestionText.innerText = `${numA} × ${numB}`;
 
-            // Generate one incorrect answer
-            let wrongAnswer = generateWrongAnswer(gameData.currentCorrectAnswer, numA, numB, maxFact);
+            // สร้างคำตอบที่ผิด 1 ข้อ
+            let wrongAnswer = gameData.currentCorrectAnswer + (Math.random() > 0.5 ? numA : -numA);
+            if (wrongAnswer === gameData.currentCorrectAnswer || wrongAnswer <= 0) wrongAnswer += 2;
 
-            // Distribute answers randomly between left (L) and right (R)
+            // สุ่มซ้าย-ขวา
             const correctIsRight = Math.random() > 0.5;
             const optionL = correctIsRight ? wrongAnswer : gameData.currentCorrectAnswer;
             const optionR = correctIsRight ? gameData.currentCorrectAnswer : wrongAnswer;
 
-            // --- Update UI ---
-            hudQuestionText.innerText = questionText; // 2D visible-always insurance
-
-            // AR 3D Update (Planes with Text)
-            // L-Plane text update
             optionLText.setAttribute('value', optionL.toString());
-            // R-Plane text update
             optionRText.setAttribute('value', optionR.toString());
 
-            // Add identifiers for which is correct (used by interaction handler)
             optionLPlane.dataset.correct = (!correctIsRight).toString();
             optionRPlane.dataset.correct = correctIsRight.toString();
+            
+            // คืนค่าสีป้ายเดิม
+            optionLPlane.setAttribute('color', '#3b82f6');
+            optionRPlane.setAttribute('color', '#ec4899');
         }
 
-        function generateWrongAnswer(correct, a, b, maxFact) {
-            let wrong;
-            const type = Math.random();
-
-            if (type < 0.3) { // Off by one error
-                wrong = correct + (Math.random() > 0.5 ? 1 : -1) * a;
-            } else if (type < 0.6) { // off by one from the other side
-                wrong = correct + (Math.random() > 0.5 ? 1 : -1) * b;
-            } else if (type < 0.8) { // common mistake: adding instead of multiplying
-                wrong = a + b;
-            } else { // random realistic wrong answer
-                wrong = (a + (Math.random() > 0.5 ? 1 : -1)) * (b + (Math.random() > 0.5 ? 1 : -1));
-            }
-
-            // Simple safety checks
-            if (wrong === correct || wrong <= 1) wrong = correct + 5;
-            return wrong;
-        }
-
-        // --- AR Interaction Logic (Direct Touch) ---
-        // A-Frame custom component to handle touch on the specific planes
+        // ระบบจับการทัชหน้าจอของ A-Frame
         AFRAME.registerComponent('handler', {
             init: function () {
                 const el = this.el;
-                el.addEventListener('mousedown', function (evt) {
+                el.addEventListener('mousedown', function () {
                     if (gameState !== 'playing') return;
                     
-                    // The entity must be visible for interaction (A-Frame default, but good reminder)
-                    handleAnswerSelection(el);
+                    const isCorrect = el.dataset.correct === 'true';
+                    el.setAttribute('color', isCorrect ? '#4ade80' : '#ef4444'); // เขียว=ถูก, แดง=ผิด
+                    
+                    if (isCorrect) {
+                        gameData.score += scoreValues[config.diff];
+                        gameData.correctCount++;
+                    } else {
+                        gameData.timeRemaining = Math.max(0, gameData.timeRemaining - 3); // ตอบผิดโดนหักเวลา 3 วิ
+                    }
+
+                    setTimeout(() => {
+                        gameData.currentQuestionIdx++;
+                        generateQuestion();
+                        updateHudDisplay();
+                    }, 400);
                 });
-                // Also listen for mouseenter if we wanted gaze detection, but here we use direct touch (mousedown)
             }
         });
 
-        function handleAnswerSelection(clickedEl) {
-            if (!clickedEl || clickedEl.dataset.correct === undefined) return;
-            
-            const isCorrect = clickedEl.dataset.correct === 'true';
-
-            // Immediate feedback: Highlight the clicked plane
-            const originalColor = clickedEl.getAttribute('color');
-            clickedEl.setAttribute('color', isCorrect ? '#4ade80' : '#ef4444'); // Green if correct, Red if wrong
-            
-            if (isCorrect) {
-                gameData.score += scoreValues[config.diff];
-                gameData.correctCount++;
-                // Short sound effect or visual confirmation
-            } else {
-                // Flash red on HUD?
-                gameData.timeRemaining = Math.max(0, gameData.timeRemaining - 2); // Time penalty for wrong answer
-            }
-
-            // Transition to next question after a short delay
-            setTimeout(() => {
-                clickedEl.setAttribute('color', originalColor); // Restore original color
-                gameData.currentQuestionIdx++;
-                generateQuestion();
-                updateHudDisplay();
-            }, 300); // 300ms feedback loop
-        }
-
         function endGame(reason) {
-            stopTimer();
+            clearInterval(gameData.timerInterval);
             gameState = 'gameover';
             
             arHud.style.display = 'none';
             gameOverScreen.style.display = 'block';
-
-            // Disable clicking in AR scene until restarted
-            arMarker.removeAttribute('cursor');
             uiContainer.classList.add('pointer-events-none');
-            // But keep pointer-events on the Game Over screen itself
             gameOverScreen.classList.add('pointer-events-auto');
 
-            gameOverReason.innerText = reason === 'complete' ? 'ตอบครบทุกข้อ (Complete)' : 'เวลาหมด (Out of time)';
-            finalScoreDisplay.innerText = gameData.score;
-            finalCorrectDisplay.innerText = gameData.correctCount;
+            document.getElementById('game-over-reason').innerText = reason === 'complete' ? 'ทำครบ 20 ข้อแล้ว!' : 'หมดเวลา!';
+            document.getElementById('final-score').innerText = gameData.score;
+            document.getElementById('final-correct').innerText = gameData.correctCount;
         }
-
     </script>
 </body>
 </html>
